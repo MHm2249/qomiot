@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Flower Pot Dashboard</title>
+  <!-- Include Gauge.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/gaugeJS/dist/gauge.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    .sensor {
+      display: inline-block;
+      margin: 20px;
+    }
+    .gauge-container {
+      position: relative;
+      width: 200px;
+      height: 160px;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Smart Flower Pot Dashboard</h1>
+  
+  <!-- Temperature Gauge -->
+  <div class="sensor">
+    <h2>Temperature (°C)</h2>
+    <div class="gauge-container">
+      <canvas id="temp-gauge" width="200" height="160"></canvas>
+    </div>
+    <div id="temp-error" class="error"></div>
+  </div>
+  
+  <!-- Humidity Gauge -->
+  <div class="sensor">
+    <h2>Humidity (%)</h2>
+    <div class="gauge-container">
+      <canvas id="humidity-gauge" width="200" height="160"></canvas>
+    </div>
+    <div id="humidity-error" class="error"></div>
+  </div>
+  
+  <!-- Light Level Gauge -->
+  <div class="sensor">
+    <h2>Light Level</h2>
+    <div class="gauge-container">
+      <canvas id="light-gauge" width="200" height="160"></canvas>
+    </div>
+    <div id="light-error" class="error"></div>
+  </div>
+  
+  <script>
+    // Gauge Options
+    var opts = {
+      angle: 0, // The span of the gauge arc
+      lineWidth: 0.2, // The line thickness
+      radiusScale: 1, // Relative radius
+      pointer: {
+        length: 0.6, // Relative to gauge radius
+        strokeWidth: 0.035, // The thickness
+        color: '#000000' // Fill color
+      },
+      limitMax: false,     // If false, max value increases automatically if value > maxValue
+      limitMin: false,     // If true, the min value of the gauge will be fixed
+      colorStart: '#6FADCF',   // Colors
+      colorStop: '#8FC0DA',    // just experiment with them
+      strokeColor: '#E0E0E0',  // to see which ones work best for you
+      generateGradient: true,
+      highDpiSupport: true,     // High resolution support
+    };
+
+    // Initialize Gauges
+    var tempTarget = document.getElementById('temp-gauge');
+    var tempGauge = new Gauge(tempTarget).setOptions(opts);
+    tempGauge.maxValue = 50;
+    tempGauge.setMinValue(0);
+    tempGauge.animationSpeed = 32;
+    tempGauge.set(0); // Initial value
+
+    var humidityTarget = document.getElementById('humidity-gauge');
+    var humidityGauge = new Gauge(humidityTarget).setOptions(opts);
+    humidityGauge.maxValue = 100;
+    humidityGauge.setMinValue(0);
+    humidityGauge.animationSpeed = 32;
+    humidityGauge.set(0); // Initial value
+
+    var lightTarget = document.getElementById('light-gauge');
+    var lightGauge = new Gauge(lightTarget).setOptions(opts);
+    lightGauge.maxValue = 1023; // Assuming analogRead on ESP32 (0-1023)
+    lightGauge.setMinValue(0);
+    lightGauge.animationSpeed = 32;
+    lightGauge.set(0); // Initial value
+
+    // Fetch and Update Sensor Data
+    function fetchSensorData() {
+      fetch('/api/data')
+        .then(response => response.json())
+        .then(data => {
+          if (data.length === 0) return; // No data yet
+          
+          // Get the latest sensor data
+          const latestData = data[0];
+          const temperature = latestData.temperature;
+          const humidity = latestData.humidity;
+          const lightValue = latestData.lightValue;
+
+          // Update Gauges
+          tempGauge.set(temperature);
+          humidityGauge.set(humidity);
+          lightGauge.set(lightValue);
+
+          // Error Checks
+          // Define thresholds
+          const TEMP_MIN = 20.0;
+          const TEMP_MAX = 28.0;
+          const HUMIDITY_MIN = 30.0;
+          const HUMIDITY_MAX = 35.0;
+          const LIGHT_THRESHOLD = 300;
+
+          // Temperature Error Check
+          if (temperature < TEMP_MIN || temperature > TEMP_MAX) {
+            document.getElementById('temp-error').innerText = `Temperature is outside the normal range (${TEMP_MIN}-${TEMP_MAX} °C)!`;
+          } else {
+            document.getElementById('temp-error').innerText = '';
+          }
+
+          // Humidity Error Check
+          if (humidity < HUMIDITY_MIN || humidity > HUMIDITY_MAX) {
+            document.getElementById('humidity-error').innerText = `Humidity is outside the normal range (${HUMIDITY_MIN}-${HUMIDITY_MAX}%)!`;
+          } else {
+            document.getElementById('humidity-error').innerText = '';
+          }
+
+          // Light Error Check
+          if (lightValue < LIGHT_THRESHOLD) {
+            document.getElementById('light-error').innerText = 'Light level is too low!';
+          } else {
+            document.getElementById('light-error').innerText = '';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching data:', error);
+          document.getElementById('temp-error').innerText = 'Error fetching data!';
+          document.getElementById('humidity-error').innerText = 'Error fetching data!';
+          document.getElementById('light-error').innerText = 'Error fetching data!';
+        });
+    }
+
+    // Fetch data every 5 seconds
+    setInterval(fetchSensorData, 5000);
+    window.onload = fetchSensorData;
+  </script>
+</body>
+</html>
